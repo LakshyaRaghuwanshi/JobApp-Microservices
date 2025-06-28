@@ -1,15 +1,13 @@
 package com.sb_JobApp.job_ms.job;
 
+import com.sb_JobApp.job_ms.job.client.CompanyClient;
+import com.sb_JobApp.job_ms.job.client.ReviewClient;
 import com.sb_JobApp.job_ms.job.dto.JobDTO;
 import com.sb_JobApp.job_ms.job.external.Company;
 import com.sb_JobApp.job_ms.job.external.Review;
 import com.sb_JobApp.job_ms.job.mapper.JobMapper;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,7 +20,10 @@ public class JobServiceImpl implements JobService{
     JobRepository jobRepository;
 
     @Autowired
-    RestTemplate restTemplate;
+    private CompanyClient companyClient;
+
+    @Autowired
+    private ReviewClient reviewClient;
 
     @Override
     public List<JobDTO> findAll() {
@@ -39,9 +40,7 @@ public class JobServiceImpl implements JobService{
 
         // Fetch company
         try {
-            company = restTemplate.getForObject(
-                    "http://company-ms/companies/" + job.getCompanyId(),
-                    Company.class);
+            company = companyClient.getCompany(job.getCompanyId());
         } catch (Exception e) {
             System.err.println("Error fetching company for job id: " + job.getId());
             e.printStackTrace();
@@ -49,12 +48,7 @@ public class JobServiceImpl implements JobService{
 
         // Fetch reviews
         try {
-            ResponseEntity<List<Review>> reviewResponse = restTemplate.exchange(
-                    "http://review-ms:8083/reviews?companyId=" + job.getCompanyId(),
-                    HttpMethod.GET,
-                    null,
-                    new ParameterizedTypeReference<List<Review>>() {});
-            reviews = reviewResponse.getBody();
+            reviews = reviewClient.getReviews(job.getCompanyId());
         } catch (Exception e) {
             System.err.println("Error fetching reviews for job id: " + job.getId());
             e.printStackTrace();
