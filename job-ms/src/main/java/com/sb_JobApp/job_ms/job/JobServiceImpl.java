@@ -6,6 +6,9 @@ import com.sb_JobApp.job_ms.job.dto.JobDTO;
 import com.sb_JobApp.job_ms.job.external.Company;
 import com.sb_JobApp.job_ms.job.external.Review;
 import com.sb_JobApp.job_ms.job.mapper.JobMapper;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
+import io.github.resilience4j.retry.annotation.Retry;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -26,39 +29,32 @@ public class JobServiceImpl implements JobService{
     private ReviewClient reviewClient;
 
     @Override
+    @CircuitBreaker(name = "companyBreaker", fallbackMethod = "findAllFallback")
+    @Retry(name = "companyRetry", fallbackMethod = "findAllFallback")
+    @RateLimiter(name = "companyRateLimiter", fallbackMethod = "findAllFallback")
     public List<JobDTO> findAll() {
         List<Job> jobs = jobRepository.findAll();
-        List<JobDTO> jobDTOS = new ArrayList<>();
 
         return jobs.stream().map(this::convertToDto)
                 .collect(Collectors.toList());
     }
 
+    public List<JobDTO> findAllFallback(Throwable t) {
+        System.err.println("🔌 Fallback triggered in findAll(): " + t.getMessage());
+        List<Job> jobs = jobRepository.findAll();
+
+        return jobs.stream().map(job -> {
+            Company fallbackCompany = new Company(job.getCompanyId(), "Unavailable Company", "N/A");
+            List<Review> emptyReviews = new ArrayList<>();
+            return JobMapper.mapToJobWithCompanyDto(job, fallbackCompany, emptyReviews);
+        }).collect(Collectors.toList());
+    }
+
     private JobDTO convertToDto(Job job) {
-        Company company = null;
-        List<Review> reviews = new ArrayList<>();
+        Company company = companyClient.getCompany(job.getCompanyId()); // will throw exception if service down
+        List<Review> reviews = reviewClient.getReviews(job.getCompanyId());
 
-        // Fetch company
-        try {
-            company = companyClient.getCompany(job.getCompanyId());
-        } catch (Exception e) {
-            System.err.println("Error fetching company for job id: " + job.getId());
-            e.printStackTrace();
-        }
-
-        // Fetch reviews
-        try {
-            reviews = reviewClient.getReviews(job.getCompanyId());
-        } catch (Exception e) {
-            System.err.println("Error fetching reviews for job id: " + job.getId());
-            e.printStackTrace();
-        }
-
-
-        JobDTO jobDTO = JobMapper.
-                    mapToJobWithCompanyDto(job, company, reviews);
-
-        return jobDTO;
+        return JobMapper.mapToJobWithCompanyDto(job, company, reviews);
     }
 
     @Override
@@ -100,6 +96,4 @@ public class JobServiceImpl implements JobService{
             }
         return false;
     }
-
-
 }
