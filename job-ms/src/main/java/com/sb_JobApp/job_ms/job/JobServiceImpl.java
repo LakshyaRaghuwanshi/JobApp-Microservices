@@ -40,7 +40,7 @@ public class JobServiceImpl implements JobService{
     }
 
     public List<JobDTO> findAllFallback(Throwable t) {
-        System.err.println("🔌 Fallback triggered in findAll(): " + t.getMessage());
+        System.err.println("Fallback triggered in findAll(): " + t.getMessage());
         List<Job> jobs = jobRepository.findAll();
 
         return jobs.stream().map(job -> {
