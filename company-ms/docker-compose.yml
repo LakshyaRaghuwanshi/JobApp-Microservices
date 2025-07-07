@@ -1,4 +1,7 @@
+#version: "3.8"
+
 services:
+
   postgres:
     container_name: postgres_container
     image: postgres
@@ -13,6 +16,7 @@ services:
     networks:
       - postgres
     restart: unless-stopped
+
   pgadmin:
     container_name: pgadmin_container
     image: dpage/pgadmin4
@@ -27,6 +31,7 @@ services:
     networks:
       - postgres
     restart: unless-stopped
+
   zipkin:
     image: openzipkin/zipkin
     container_name: zipkin
@@ -34,6 +39,7 @@ services:
       - 9411:9411
     networks:
       - postgres
+
   rabbitmq:
     image: rabbitmq:3-management
     container_name: rabbitmq
@@ -43,7 +49,94 @@ services:
     networks:
       - postgres
 
+  config-server:
+    image: lakshyaraghuwanshii/config-server:latest
+    container_name: config-server
+    ports:
+      - 8080:8080
+    depends_on:
+      - eureka-server
+    networks:
+      - microservice-network
+      - postgres
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+
+  eureka-server:
+    image: lakshyaraghuwanshii/eureka-server:latest
+    container_name: eureka-server
+    ports:
+      - "8761:8761"
+    depends_on:
+      - rabbitmq
+      - zipkin
+      - postgres
+      - pgadmin
+    networks:
+      - microservice-network
+      - postgres
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+
+  company-ms:
+    image: lakshyaraghuwanshii/company-ms:latest
+    container_name: company
+    ports:
+      - 8081:8081
+    depends_on:
+      - eureka-server
+      - config-server
+    networks:
+      - microservice-network
+      - postgres
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+
+  job-ms:
+    image: lakshyaraghuwanshii/job-ms:latest
+    container_name: job
+    ports:
+      - 8082:8082
+    depends_on:
+      - eureka-server
+      - config-server
+    networks:
+      - microservice-network
+      - postgres
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka
+
+  review-ms:
+    image: lakshyaraghuwanshii/review-ms:latest
+    container_name: review
+    ports:
+      - 8083:8083
+    depends_on:
+      - eureka-server
+      - config-server
+    networks:
+      - microservice-network
+      - postgres
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+
+  api-gateway:
+    image: lakshyaraghuwanshii/api-gateway:latest
+    ports:
+      - 8084:8084
+    depends_on:
+      - eureka-server
+    networks:
+      - microservice-network
+      - postgres
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+
+
 networks:
+  microservice-network:
+    driver: bridge
   postgres:
     driver: bridge
 
